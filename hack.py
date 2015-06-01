@@ -34,7 +34,7 @@ for app in apps:
     entity = app.copy()
     entity['id'] = '{}[kio]'.format(app['id'])
     entity['application_id'] = app['id']
-    entity['type'] = 'kioapplication'
+    entity['type'] = 'application'
     entity['url'] = app['service_url']
     push_entity(entity)
 response = requests.get(team_service_url, headers={'Authorization': 'Bearer {}'.format(access_token)})
