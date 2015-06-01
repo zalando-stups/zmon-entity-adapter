@@ -31,7 +31,7 @@ response = requests.get(kio_url + '/apps', headers={'Authorization': 'Bearer {}'
 apps = response.json()
 for app in apps:
     print(app)
-    entity = app
+    entity = app.copy()
     entity['id'] = '{}[kio]'.format(app['id'])
     entity['application_id'] = app['id']
     entity['type'] = 'kioapplication'
@@ -41,7 +41,7 @@ response = requests.get(team_service_url, headers={'Authorization': 'Bearer {}'.
 teams = response.json()
 for team in teams:
     print(team)
-    entity = team
+    entity = team.copy()
     entity['id'] = '{}[team-service]'.format(team['id'])
     entity['team_id'] = team['id']
     entity['type'] = 'team'
