@@ -36,6 +36,7 @@ for app in apps:
     entity['application_id'] = app['id']
     entity['type'] = 'kio_application'
     entity['url'] = app['service_url']
+    entity['active'] = str(entity['active'])
     push_entity(entity)
 response = requests.get(team_service_url, headers={'Authorization': 'Bearer {}'.format(access_token)})
 teams = response.json()
