@@ -29,6 +29,7 @@ def sync_apps(kio_url, access_token):
     response = requests.get(kio_url + '/apps', headers={'Authorization': 'Bearer {}'.format(access_token)})
     response.raise_for_status()
     apps = response.json()
+    logging.info('Syncing {} Kio applications..'.format(len(apps)))
     for app in apps:
         entity = app.copy()
         entity['id'] = '{}[kio]'.format(app['id'])
@@ -46,6 +47,7 @@ def sync_teams(team_service_url, access_token):
                             headers={'Authorization': 'Bearer {}'.format(access_token)})
     response.raise_for_status()
     teams = response.json()
+    logging.info('Syncing {} teams..'.format(len(teams)))
     for team in teams:
         if not team['id']:
             continue
@@ -102,13 +104,12 @@ app.add_api('swagger.yaml')
 # set the WSGI application callable to allow using uWSGI:
 # uwsgi --http :8080 -w app
 application = app.app
-logging.info('TEST')
 
 try:
     import uwsgi
     signum = 1
     uwsgi.register_signal(signum, "", run_update)
-    uwsgi.add_timer(signum, 10)
+    uwsgi.add_timer(signum, 120)
 except Exception as e:
     print(e)
 
