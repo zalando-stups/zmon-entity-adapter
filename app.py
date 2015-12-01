@@ -1,35 +1,26 @@
 #!/usr/bin/env python3
-
-# Just a quick hack for now
-# Usage:
-# ./hack.py <KIO-URL> <TEAM-URL>
-
+import connexion
 import json
-import os
-import yaml
 import logging
+import os
 import requests
-import sys
-import zign.api
+import tokens
 
 sess = requests.Session()
 adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
 sess.mount('https://', adapter)
 requests = sess
 
-kio_url = sys.argv[1]
-team_service_url = sys.argv[2]
-
-with open(os.path.expanduser('~/.zmon-cli.yaml')) as fd:
-    config = yaml.safe_load(fd)
-
-access_token = zign.api.get_token('zmon-entity-adapter', ['uid'])
-
 
 def push_entity(entity):
     logging.info('Pushing {type} entity {id}..'.format(**entity))
     body = json.dumps(entity)
-    response = requests.put(config['url'] + '/entities/', body, auth=(config['user'], os.getenv('ZMON_PASSWORD')),
+    if os.getenv('ZMON_USER'):
+        auth = (os.getenv('ZMON_USER'), os.getenv('ZMON_PASSWORD'))
+    else:
+        auth = None
+    response = requests.put(os.getenv('ZMON_URL') + '/entities/', body,
+                            auth=auth,
                             headers={'Content-Type': 'application/json'})
     response.raise_for_status()
 
@@ -49,7 +40,6 @@ def sync_apps(kio_url, access_token):
 
 
 def sync_teams(team_service_url, access_token):
-
     aws_consolidated_billing_account_id = os.getenv('AWS_CONSOLIDATED_BILLING_ACCOUNT_ID')
 
     response = requests.get(team_service_url + '/api/teams',
@@ -89,6 +79,38 @@ def sync_teams(team_service_url, access_token):
                 push_entity(entity)
 
 
-logging.basicConfig(level=logging.INFO)
-#sync_apps(kio_url, access_token)
-sync_teams(team_service_url, access_token)
+def run_update(signum):
+    if uwsgi.is_locked(signum):
+        return
+    uwsgi.lock(signum)
+    try:
+        tokens.manage('zmon-entity-adapter', ['uid'])
+        access_token = tokens.get('zmon-entity-adapter')
+        sync_apps(os.getenv('KIO_URL'), access_token)
+        sync_teams(os.getenv('TEAM_SERVICE_URL'), access_token)
+    finally:
+        uwsgi.unlock(signum)
+
+
+def get_health():
+    return True
+
+
+logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+app = connexion.App(__name__)
+app.add_api('swagger.yaml')
+# set the WSGI application callable to allow using uWSGI:
+# uwsgi --http :8080 -w app
+application = app.app
+logging.info('TEST')
+
+try:
+    import uwsgi
+    signum = 1
+    uwsgi.register_signal(signum, "", run_update)
+    uwsgi.add_timer(signum, 10)
+except Exception as e:
+    print(e)
+
+if __name__ == '__main__':
+    app.run(port=8080)
