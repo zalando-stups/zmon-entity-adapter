@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import collections
 import connexion
 import json
 import logging
@@ -10,6 +11,8 @@ sess = requests.Session()
 adapter = requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20)
 sess.mount('https://', adapter)
 requests = sess
+
+ENTITY_STATS = collections.defaultdict(int)
 
 
 def push_entity(entity):
@@ -23,6 +26,7 @@ def push_entity(entity):
                             auth=auth,
                             headers={'Content-Type': 'application/json'})
     response.raise_for_status()
+    ENTITY_STATS[entity['type']] += 1
 
 
 def sync_apps(kio_url, access_token):
@@ -90,6 +94,7 @@ def run_update(signum):
         access_token = tokens.get('zmon-entity-adapter')
         sync_apps(os.getenv('KIO_URL'), access_token)
         sync_teams(os.getenv('TEAM_SERVICE_URL'), access_token)
+        logging.info('Update finished. Pushed entities: {}'.format(ENTITY_STATS))
     finally:
         uwsgi.unlock(signum)
 
@@ -109,7 +114,7 @@ try:
     import uwsgi
     signum = 1
     uwsgi.register_signal(signum, "", run_update)
-    uwsgi.add_timer(signum, 120)
+    uwsgi.add_timer(signum, int(os.getenv('UPDATE_INTERVAL_SECONDS', '300')))
 except Exception as e:
     print(e)
 
