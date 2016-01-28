@@ -4,8 +4,7 @@ STUPS ZMON Entity Adapter
 
 Push "global" STUPS entities such as KIO applications and teams to ZMON entity service.
 
-Just a hack for now:
-
 .. code-block:: bash
 
-    $ ./hack.py <KIO-URL> <TEAM-URL>
+    $ scm-source
+    $ docker build -t registry.opensource.zalan.do/stups/zmon-entity-adapter:0.1 .
