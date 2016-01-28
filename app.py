@@ -73,6 +73,7 @@ def sync_teams(team_service_url, access_token):
             entity['account_type'] = infra['type']
             entity['account_id'] = infra['id']
             entity['name'] = infra['name']
+            entity['disabled'] = infra.get('disabled', False)
             push_entity(entity)
 
             if aws_consolidated_billing_account_id and infra['type'] == 'aws':
