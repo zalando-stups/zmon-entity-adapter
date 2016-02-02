@@ -15,16 +15,12 @@ requests = sess
 ENTITY_STATS = collections.defaultdict(int)
 
 
-def push_entity(entity):
+def push_entity(entity, access_token):
     logging.info('Pushing {type} entity {id}..'.format(**entity))
     body = json.dumps(entity)
-    if os.getenv('ZMON_USER'):
-        auth = (os.getenv('ZMON_USER'), os.getenv('ZMON_PASSWORD'))
-    else:
-        auth = None
     response = requests.put(os.getenv('ZMON_URL') + '/entities/', body,
-                            auth=auth,
-                            headers={'Content-Type': 'application/json'})
+                            headers={'Content-Type': 'application/json',
+                                     'Authorization': 'Bearer {}'.format(access_token)})
     response.raise_for_status()
     ENTITY_STATS[entity['type']] += 1
 
@@ -41,7 +37,7 @@ def sync_apps(kio_url, access_token):
         entity['type'] = 'kio_application'
         entity['url'] = app['service_url']
         entity['active'] = str(entity['active'])
-        push_entity(entity)
+        push_entity(entity, access_token)
 
 
 def sync_teams(team_service_url, access_token):
@@ -60,7 +56,7 @@ def sync_teams(team_service_url, access_token):
         entity['name'] = team['id']
         entity['long_name'] = team.get('id_name') or team['id']
         entity['type'] = 'team'
-        push_entity(entity)
+        push_entity(entity, access_token)
 
         r = requests.get(team_service_url + '/api/teams/' + team['id'],
                          headers={'Authorization': 'Bearer {}'.format(access_token)})
@@ -76,7 +72,7 @@ def sync_teams(team_service_url, access_token):
             entity['owner'] = infra.get('owner')
             # NOTE: all entity values need to be strings!
             entity['disabled'] = str(infra.get('disabled', False))
-            push_entity(entity)
+            push_entity(entity, access_token)
 
             if aws_consolidated_billing_account_id and infra['type'] == 'aws':
                 entity = {}
@@ -85,7 +81,7 @@ def sync_teams(team_service_url, access_token):
                 entity['account_id'] = infra['id']
                 entity['name'] = infra['name']
                 entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
-                push_entity(entity)
+                push_entity(entity, access_token)
 
 
 def run_update(signum):
