@@ -15,6 +15,25 @@ requests = sess
 ENTITY_STATS = collections.defaultdict(int)
 
 
+def normalized_dict(d):
+    try:
+        return json.loads(json.dumps(d))
+    except:
+        # As a safe fallback!
+        return d
+
+
+def new_or_updated_entity(entity, existing_entities_dict):
+    # check if new entity
+    if entity['id'] not in existing_entities_dict:
+        return True
+
+    entity.pop('last_modified', None)
+    existing_entities_dict[entity['id']].pop('last_modified', None)
+
+    return normalized_dict(entity) != normalized_dict(existing_entities_dict[entity['id']])
+
+
 def push_entity(entity, access_token):
     logging.info('Pushing {type} entity {id}..'.format(**entity))
     body = json.dumps(entity)
@@ -25,7 +44,18 @@ def push_entity(entity, access_token):
     ENTITY_STATS[entity['type']] += 1
 
 
-def sync_apps(kio_url, access_token):
+def get_entities(types, access_token):
+    query = [{'type': _type} for _type in types]
+    r = requests.get(os.getenv('ZMON_URL') + '/entities', params={'query': json.dumps(query)}, timeout=10,
+                     headers={'Authorization': 'Bearer {}'.format(access_token)})
+    r.raise_for_status()
+    entities = {}
+    for ent in r.json():
+        entities[ent['id']] = ent
+    return entities
+
+
+def sync_apps(entities, kio_url, access_token):
     response = requests.get(kio_url + '/apps', headers={'Authorization': 'Bearer {}'.format(access_token)})
     response.raise_for_status()
     apps = response.json()
@@ -37,10 +67,11 @@ def sync_apps(kio_url, access_token):
         entity['type'] = 'kio_application'
         entity['url'] = app['service_url']
         entity['active'] = str(entity['active'])
-        push_entity(entity, access_token)
+        if new_or_updated_entity(entity, entities):
+            push_entity(entity, access_token)
 
 
-def sync_teams(team_service_url, access_token):
+def sync_teams(entities, team_service_url, access_token):
     aws_consolidated_billing_account_id = os.getenv('AWS_CONSOLIDATED_BILLING_ACCOUNT_ID')
 
     response = requests.get(team_service_url + '/api/teams',
@@ -56,7 +87,8 @@ def sync_teams(team_service_url, access_token):
         entity['name'] = team['id']
         entity['long_name'] = team.get('id_name') or team['id']
         entity['type'] = 'team'
-        push_entity(entity, access_token)
+        if new_or_updated_entity(entity, entities):
+            push_entity(entity, access_token)
 
         r = requests.get(team_service_url + '/api/teams/' + team['id'],
                          headers={'Authorization': 'Bearer {}'.format(access_token)})
@@ -72,7 +104,8 @@ def sync_teams(team_service_url, access_token):
             entity['owner'] = infra.get('owner')
             # NOTE: all entity values need to be strings!
             entity['disabled'] = str(infra.get('disabled', False))
-            push_entity(entity, access_token)
+            if new_or_updated_entity(entity, entities):
+                push_entity(entity, access_token)
 
             if aws_consolidated_billing_account_id and infra['type'] == 'aws':
                 entity = {}
@@ -81,7 +114,8 @@ def sync_teams(team_service_url, access_token):
                 entity['account_id'] = infra['id']
                 entity['name'] = infra['name']
                 entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
-                push_entity(entity, access_token)
+                if new_or_updated_entity(entity, entities):
+                    push_entity(entity, access_token)
 
 
 def run_update(signum):
@@ -91,8 +125,9 @@ def run_update(signum):
     try:
         tokens.manage('zmon-entity-adapter', ['uid'])
         access_token = tokens.get('zmon-entity-adapter')
-        sync_apps(os.getenv('KIO_URL'), access_token)
-        sync_teams(os.getenv('TEAM_SERVICE_URL'), access_token)
+        entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing'), access_token)
+        sync_apps(entities, os.getenv('KIO_URL'), access_token)
+        sync_teams(entities, os.getenv('TEAM_SERVICE_URL'), access_token)
         logging.info('Update finished. Pushed entities: {}'.format(ENTITY_STATS))
     finally:
         uwsgi.unlock(signum)
