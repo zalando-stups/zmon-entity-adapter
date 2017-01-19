@@ -126,11 +126,14 @@ def sync_clusters(entities, cluster_registry_url, access_token):
     response.raise_for_status()
     clusters = response.json()['items']
     logging.info('Syncing {} Kubernetes clusters..'.format(len(clusters)))
+    keys_to_map = ['api_server_url', 'channel', 'criticality_level', 'environment', 'infrastructure_account', 'lifecycle_status', 'local_id', 'provider', 'region']
     for cluster in clusters:
         entity = {}
         entity['id'] = '{}[kubernetes-cluster]'.format(cluster['id'])
-        entity['api_server_url'] = cluster['api_server_url']
+        for key in keys_to_map:
+            entity[key] = str(cluster[key])
         entity['type'] = 'kubernetes_cluster'
+
         if new_or_updated_entity(entity, entities):
             push_entity(entity, access_token)
 
