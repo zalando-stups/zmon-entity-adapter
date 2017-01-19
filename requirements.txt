@@ -1,4 +1,2 @@
-connexion
 requests
 stups-tokens
-uwsgi

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import collections
-import connexion
 import json
 import logging
 import os
@@ -136,40 +135,16 @@ def sync_clusters(entities, cluster_registry_url, access_token):
             push_entity(entity, access_token)
 
 
-def run_update(signum):
-    if uwsgi.is_locked(signum):
-        return
-    uwsgi.lock(signum)
-    try:
-        tokens.manage('zmon-entity-adapter', ['uid'])
-        access_token = tokens.get('zmon-entity-adapter')
-        entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing', 'kubernetes_cluster'), access_token)
-        sync_apps(entities, os.getenv('KIO_URL'), access_token)
-        sync_teams(entities, os.getenv('TEAM_SERVICE_URL'), access_token)
-        sync_clusters(entities, os.getenv('CLUSTER_REGISTRY_URL'), access_token)
-        logging.info('Update finished. Pushed entities: {}'.format(ENTITY_STATS))
-    finally:
-        uwsgi.unlock(signum)
+def main():
+    logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
+    tokens.manage('zmon-entity-adapter', ['uid'])
+    access_token = tokens.get('zmon-entity-adapter')
+    entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing', 'kubernetes_cluster'), access_token)
+    sync_apps(entities, os.getenv('KIO_URL'), access_token)
+    sync_teams(entities, os.getenv('TEAM_SERVICE_URL'), access_token)
+    sync_clusters(entities, os.getenv('CLUSTER_REGISTRY_URL'), access_token)
+    logging.info('Update finished. Pushed entities: {}'.format(ENTITY_STATS))
 
-
-def get_health():
-    return True
-
-
-logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
-app = connexion.App(__name__)
-app.add_api('swagger.yaml')
-# set the WSGI application callable to allow using uWSGI:
-# uwsgi --http :8080 -w app
-application = app.app
-
-try:
-    import uwsgi
-    signum = 1
-    uwsgi.register_signal(signum, "", run_update)
-    uwsgi.add_timer(signum, int(os.getenv('UPDATE_INTERVAL_SECONDS', '300')))
-except Exception as e:
-    print(e)
 
 if __name__ == '__main__':
-    app.run(port=8080)
+    main()
