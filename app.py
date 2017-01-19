@@ -118,6 +118,21 @@ def sync_teams(entities, team_service_url, access_token):
                     push_entity(entity, access_token)
 
 
+def sync_clusters(entities, cluster_registry_url, access_token):
+    response = requests.get(cluster_registry_url + '/kubernetes-clusters',
+                            headers={'Authorization': 'Bearer {}'.format(access_token)})
+    response.raise_for_status()
+    clusters = response.json()['items']
+    logging.info('Syncing {} Kubernetes clusters..'.format(len(clusters)))
+    for cluster in clusters:
+        entity = {}
+        entity['id'] = '{}[kubernetes-cluster]'.format(cluster['id'])
+        entity['api_server_url'] = cluster['api_server_url']
+        entity['type'] = 'kubernetes_cluster'
+        if new_or_updated_entity(entity, entities):
+            push_entity(entity, access_token)
+
+
 def run_update(signum):
     if uwsgi.is_locked(signum):
         return
@@ -125,9 +140,10 @@ def run_update(signum):
     try:
         tokens.manage('zmon-entity-adapter', ['uid'])
         access_token = tokens.get('zmon-entity-adapter')
-        entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing'), access_token)
+        entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing', 'kubernetes_cluster'), access_token)
         sync_apps(entities, os.getenv('KIO_URL'), access_token)
         sync_teams(entities, os.getenv('TEAM_SERVICE_URL'), access_token)
+        sync_clusters(entities, os.getenv('CLUSTER_REGISTRY_URL'), access_token)
         logging.info('Update finished. Pushed entities: {}'.format(ENTITY_STATS))
     finally:
         uwsgi.unlock(signum)
