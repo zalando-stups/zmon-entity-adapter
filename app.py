@@ -90,32 +90,35 @@ def sync_teams(entities, team_service_url, access_token):
         if new_or_updated_entity(entity, entities):
             push_entity(entity, access_token)
 
-        r = requests.get(team_service_url + '/api/teams/' + team['id'],
-                         headers={'Authorization': 'Bearer {}'.format(access_token)})
-        r.raise_for_status()
-        data = r.json()
-        for infra in data.get('infrastructure-accounts', []):
-            entity = {}
-            entity['id'] = '{}-{}[infrastructure-account]'.format(infra['type'], infra['id'])
-            entity['type'] = 'infrastructure_account'
-            entity['account_type'] = infra['type']
-            entity['account_id'] = infra['id']
-            entity['name'] = infra['name']
-            entity['owner'] = infra.get('owner')
-            # NOTE: all entity values need to be strings!
-            entity['disabled'] = str(infra.get('disabled', False))
-            if new_or_updated_entity(entity, entities):
-                push_entity(entity, access_token)
-
-            if aws_consolidated_billing_account_id and infra['type'] == 'aws':
+        try:
+            r = requests.get(team_service_url + '/api/teams/' + team['id'],
+                             headers={'Authorization': 'Bearer {}'.format(access_token)})
+            r.raise_for_status()
+            data = r.json()
+            for infra in data.get('infrastructure-accounts', []):
                 entity = {}
-                entity['id'] = 'aws-bill-{}[aws:{}]'.format(infra['name'], aws_consolidated_billing_account_id)
-                entity['type'] = 'aws_billing'
+                entity['id'] = '{}-{}[infrastructure-account]'.format(infra['type'], infra['id'])
+                entity['type'] = 'infrastructure_account'
+                entity['account_type'] = infra['type']
                 entity['account_id'] = infra['id']
                 entity['name'] = infra['name']
-                entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
+                entity['owner'] = infra.get('owner')
+                # NOTE: all entity values need to be strings!
+                entity['disabled'] = str(infra.get('disabled', False))
                 if new_or_updated_entity(entity, entities):
                     push_entity(entity, access_token)
+
+                if aws_consolidated_billing_account_id and infra['type'] == 'aws':
+                    entity = {}
+                    entity['id'] = 'aws-bill-{}[aws:{}]'.format(infra['name'], aws_consolidated_billing_account_id)
+                    entity['type'] = 'aws_billing'
+                    entity['account_id'] = infra['id']
+                    entity['name'] = infra['name']
+                    entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
+                    if new_or_updated_entity(entity, entities):
+                        push_entity(entity, access_token)
+        except:
+            logging.exception('Failed to update team {}'.format(team['id']))
 
 
 def sync_clusters(entities, cluster_registry_url, access_token):
