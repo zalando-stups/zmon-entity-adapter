@@ -133,6 +133,8 @@ def sync_clusters(entities, cluster_registry_url, access_token):
             continue
         entity = {}
         entity['id'] = '{}[kubernetes-cluster]'.format(cluster['id'])
+        entity['cluster_id'] = cluster['id']
+        entity['url'] = cluster['api_server_url']
         for key in keys_to_map:
             entity[key] = str(cluster[key])
         entity['type'] = 'kubernetes_cluster'
