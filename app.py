@@ -128,9 +128,6 @@ def sync_clusters(entities, cluster_registry_url, access_token):
     logging.info('Syncing {} Kubernetes clusters..'.format(len(clusters)))
     keys_to_map = ['alias', 'api_server_url', 'channel', 'criticality_level', 'environment', 'infrastructure_account', 'lifecycle_status', 'local_id', 'provider', 'region']
     for cluster in clusters:
-        if cluster.get('lifecycle_status') != 'ready':
-            # ignore clusters which are decommissioned or not yet provisioned
-            continue
         entity = {}
         entity['id'] = '{}[kubernetes-cluster]'.format(cluster['id'])
         entity['cluster_id'] = cluster['id']
