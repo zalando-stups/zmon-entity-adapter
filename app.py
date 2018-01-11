@@ -33,6 +33,28 @@ def new_or_updated_entity(entity, existing_entities_dict):
     return normalized_dict(entity) != normalized_dict(existing_entities_dict[entity['id']])
 
 
+def remove_missing_entities(existing_ids, current_ids, access_token):
+    to_be_removed_ids = list(set(existing_ids) - set(current_ids))
+
+    error_count = 0
+
+    logging.info('Removing {} entities from ZMON'.format(len(to_be_removed_ids)))
+    for entity_id in to_be_removed_ids:
+        try:
+            logging.info('Removing entity with id: {}'.format(entity_id))
+
+            response = requests.delete(os.getenv('ZMON_URL') + '/entities/{}'.format(entity_id),
+                                       headers={'Content-Type': 'application/json',
+                                       'Authorization': 'Bearer {}'.format(access_token)})
+            response.raise_for_status()
+
+        except Exception:
+            logging.exception('Exception while deleting entity: {}'.format(entity_id))
+            error_count += 1
+
+    return to_be_removed_ids, error_count
+
+
 def push_entity(entity, access_token):
     logging.info('Pushing {type} entity {id}..'.format(**entity))
     body = json.dumps(entity)
@@ -59,15 +81,20 @@ def sync_apps(entities, kio_url, access_token):
     response.raise_for_status()
     apps = response.json()
     logging.info('Syncing {} Kio applications..'.format(len(apps)))
+    current_ids = []
     for app in apps:
         entity = app.copy()
         entity['id'] = '{}[kio]'.format(app['id'])
+        current_ids.append(entity['id'])
         entity['application_id'] = app['id']
         entity['type'] = 'kio_application'
         entity['url'] = app['service_url']
         entity['active'] = str(entity['active'])
         if new_or_updated_entity(entity, entities):
             push_entity(entity, access_token)
+    existing_ids = [ent['id'] for ent in entities if ent.get('type', '') == 'kio_application']
+    removed, error_count = remove_missing_entities(existing_ids, current_ids, access_token)
+    logging.info('removed {} entities while {} errors happened'.format(removed, error_count))
 
 
 def sync_teams(entities, team_service_url, access_token):
@@ -126,7 +153,9 @@ def sync_clusters(entities, cluster_registry_url, access_token):
     response.raise_for_status()
     clusters = response.json()['items']
     logging.info('Syncing {} Kubernetes clusters..'.format(len(clusters)))
-    keys_to_map = ['alias', 'api_server_url', 'channel', 'criticality_level', 'environment', 'infrastructure_account', 'lifecycle_status', 'local_id', 'provider', 'region']
+    keys_to_map = ['alias', 'api_server_url', 'channel', 'criticality_level',
+                   'environment', 'infrastructure_account', 'lifecycle_status',
+                   'local_id', 'provider', 'region']
     for cluster in clusters:
         entity = {}
         entity['id'] = '{}[kubernetes-cluster]'.format(cluster['id'])
@@ -144,7 +173,8 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(levelname)s %(name)s: %(message)s')
     tokens.manage('zmon-entity-adapter', ['uid'])
     access_token = tokens.get('zmon-entity-adapter')
-    entities = get_entities(('kio_application', 'team', 'infrastructure_account', 'aws_billing', 'kubernetes_cluster'), access_token)
+    entities = get_entities(('kio_application', 'team', 'infrastructure_account',
+                             'aws_billing', 'kubernetes_cluster'), access_token)
     sync_apps(entities, os.getenv('KIO_URL'), access_token)
     sync_teams(entities, os.getenv('TEAM_SERVICE_URL'), access_token)
     sync_clusters(entities, os.getenv('CLUSTER_REGISTRY_URL'), access_token)
