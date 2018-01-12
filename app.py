@@ -83,15 +83,16 @@ def sync_apps(entities, kio_url, access_token):
     logging.info('Syncing {} Kio applications..'.format(len(apps)))
     current_ids = []
     for app in apps:
-        entity = app.copy()
-        entity['id'] = '{}[kio]'.format(app['id'])
-        current_ids.append(entity['id'])
-        entity['application_id'] = app['id']
-        entity['type'] = 'kio_application'
-        entity['url'] = app['service_url']
-        entity['active'] = str(entity['active'])
-        if new_or_updated_entity(entity, entities):
-            push_entity(entity, access_token)
+        if app['active']:
+            entity = app.copy()
+            entity['id'] = '{}[kio]'.format(app['id'])
+            current_ids.append(entity['id'])
+            entity['application_id'] = app['id']
+            entity['type'] = 'kio_application'
+            entity['url'] = app['service_url']
+            entity['active'] = str(entity['active'])
+            if new_or_updated_entity(entity, entities):
+                push_entity(entity, access_token)
     existing_ids = [ent['id'] for ent in entities if ent.get('type', '') == 'kio_application']
     removed, error_count = remove_missing_entities(existing_ids, current_ids, access_token)
     logging.info('removed {} entities while {} errors happened'.format(removed, error_count))
