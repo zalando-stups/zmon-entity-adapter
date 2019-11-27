@@ -17,7 +17,7 @@ ENTITY_STATS = collections.defaultdict(int)
 def normalized_dict(d):
     try:
         return json.loads(json.dumps(d))
-    except:
+    except Exception:
         # As a safe fallback!
         return d
 
@@ -60,7 +60,9 @@ def push_entity(entity, access_token):
     body = json.dumps(entity)
     response = requests.put(os.getenv('ZMON_URL') + '/entities/', body,
                             headers={'Content-Type': 'application/json',
-                                     'Authorization': 'Bearer {}'.format(access_token)})
+                                     'Authorization': 'Bearer {}'.format(access_token)},
+                            timeout=10,
+                            )
     response.raise_for_status()
     ENTITY_STATS[entity['type']] += 1
 
@@ -77,7 +79,9 @@ def get_entities(types, access_token):
 
 
 def sync_apps(entities, kio_url, access_token):
-    response = requests.get(kio_url + '/apps', headers={'Authorization': 'Bearer {}'.format(access_token)})
+    response = requests.get(kio_url + '/apps', headers={'Authorization': 'Bearer {}'.format(access_token)},
+                            timeout=60,
+                            )
     response.raise_for_status()
     apps = response.json()
     logging.info('Syncing {} Kio applications..'.format(len(apps)))
@@ -95,14 +99,16 @@ def sync_apps(entities, kio_url, access_token):
                 push_entity(entity, access_token)
     existing_ids = [ent['id'] for ent in entities if ent.get('type', '') == 'kio_application']
     removed, error_count = remove_missing_entities(existing_ids, current_ids, access_token)
-    logging.info('removed {} entities while {} errors happened'.format(removed, error_count))
+    logging.info('removed {} entities while {} errors happened'.format(len(removed), error_count))
 
 
 def sync_teams(entities, team_service_url, access_token):
     aws_consolidated_billing_account_id = os.getenv('AWS_CONSOLIDATED_BILLING_ACCOUNT_ID')
 
     response = requests.get(team_service_url + '/api/teams',
-                            headers={'Authorization': 'Bearer {}'.format(access_token)})
+                            headers={'Authorization': 'Bearer {}'.format(access_token)},
+                            timeout=60,
+                            )
     response.raise_for_status()
     teams = response.json()
     logging.info('Syncing {} teams..'.format(len(teams)))
@@ -119,7 +125,9 @@ def sync_teams(entities, team_service_url, access_token):
 
         try:
             r = requests.get(team_service_url + '/api/teams/' + team['id'],
-                             headers={'Authorization': 'Bearer {}'.format(access_token)})
+                             headers={'Authorization': 'Bearer {}'.format(access_token)},
+                             timeout=10,
+                             )
             r.raise_for_status()
             data = r.json()
             for infra in data.get('infrastructure-accounts', []):
@@ -144,13 +152,15 @@ def sync_teams(entities, team_service_url, access_token):
                     entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
                     if new_or_updated_entity(entity, entities):
                         push_entity(entity, access_token)
-        except:
+        except Exception:
             logging.exception('Failed to update team {}'.format(team['id']))
 
 
 def sync_clusters(entities, cluster_registry_url, access_token):
     response = requests.get(cluster_registry_url + '/kubernetes-clusters',
-                            headers={'Authorization': 'Bearer {}'.format(access_token)})
+                            headers={'Authorization': 'Bearer {}'.format(access_token)},
+                            timeout=30,
+                            )
     response.raise_for_status()
     clusters = response.json()['items']
     logging.info('Syncing {} Kubernetes clusters..'.format(len(clusters)))
