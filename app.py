@@ -64,6 +64,7 @@ def sync_apps(entities, kio_url, access_token):
         entity['id'] = '{}[kio]'.format(app['id'])
         entity['application_id'] = app['id']
         entity['type'] = 'kio_application'
+        entity['created_by'] = 'zmon-entity-adapter'
         entity['url'] = app['service_url']
         entity['active'] = str(entity['active'])
         if new_or_updated_entity(entity, entities):
@@ -86,6 +87,7 @@ def sync_teams(entities, team_service_url, access_token):
         entity['name'] = team['id']
         entity['long_name'] = team.get('id_name') or team['id']
         entity['type'] = 'team'
+        entity['created_by'] = 'zmon-entity-adapter'
         if new_or_updated_entity(entity, entities):
             push_entity(entity, access_token)
 
@@ -98,6 +100,7 @@ def sync_teams(entities, team_service_url, access_token):
                 entity = {}
                 entity['id'] = '{}-{}[infrastructure-account]'.format(infra['type'], infra['id'])
                 entity['type'] = 'infrastructure_account'
+                entity['created_by'] = 'zmon-entity-adapter'
                 entity['account_type'] = infra['type']
                 entity['account_id'] = infra['id']
                 entity['name'] = infra['name']
@@ -111,6 +114,7 @@ def sync_teams(entities, team_service_url, access_token):
                     entity = {}
                     entity['id'] = 'aws-bill-{}[aws:{}]'.format(infra['name'], aws_consolidated_billing_account_id)
                     entity['type'] = 'aws_billing'
+                    entity['created_by'] = 'zmon-entity-adapter'
                     entity['account_id'] = infra['id']
                     entity['name'] = infra['name']
                     entity['infrastructure_account'] = 'aws:{}'.format(aws_consolidated_billing_account_id)
@@ -135,6 +139,7 @@ def sync_clusters(entities, cluster_registry_url, access_token):
         for key in keys_to_map:
             entity[key] = str(cluster[key])
         entity['type'] = 'kubernetes_cluster'
+        entity['created_by'] = 'zmon-entity-adapter'
 
         if new_or_updated_entity(entity, entities):
             push_entity(entity, access_token)
